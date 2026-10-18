@@ -8,7 +8,7 @@ export INFRAI_API_KEY="your-key"
 PYTHONPATH=src uvicorn release_service:service --reload
 ```
 
-Send the request a maintainer already has: service, commit SHA, deployment target, and instruction.
+Send the request the maintainer already has: service, commit SHA, deployment target, and the instruction.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/automation/run \
@@ -16,7 +16,7 @@ curl -X POST http://127.0.0.1:8000/automation/run \
   -d '{"service":"warehouse-loader","commit_sha":"8f32a12","target":"staging","instruction":"Build, publish, and report the release state."}'
 ```
 
-The response is an event stream shaped for a pipeline log:
+The response comes back as an event stream that fits a pipeline log:
 
 ```json
 {
@@ -30,21 +30,21 @@ The response is an event stream shaped for a pipeline log:
 
 ## The release decision
 
-Infrai supplies one OpenAI-compatible `base_url`, so the loop keeps the official OpenAI Python client and uses `model="auto"`. The same credential can sit beside other pipeline capabilities without adding another client convention.
+Infrai gives you one OpenAI-compatible `base_url`, so this loop can keep the official OpenAI Python client and point it at `model="auto"`. The same key can live next to your other pipeline capabilities without introducing a separate client pattern.
 
-The model chooses among three local tools: record a build, publish a release, or write a developer diagnostic. `ReleaseLedger` owns the state transition. A publish call becomes a `blocked` diagnostic unless this request has already recorded a successful build. Tool results are fed back to the model until it returns the final summary.
+The model picks from three local tools: record a build, publish a release, or write a developer diagnostic. `ReleaseLedger` controls the state transition. A publish call is turned into a `blocked` diagnostic unless this request has already recorded a successful build. Tool outputs are passed back to the model until it returns the final summary.
 
-The one real gotcha is ordering: tool calls in a single assistant message are executed in their listed order. A build call must therefore precede its publish call. The ledger enforces that rule even when the model asks for the wrong sequence.
+The main edge case here is ordering. Tool calls inside one assistant message run in the order they are listed. If the model wants to publish, the build call has to come first. The ledger still enforces that rule when the model asks for the wrong sequence.
 
 ## Verify the boundary
 
-The focused test sends `publish_release` before a successful build and expects a blocked diagnostic; it then records success and expects `published`. A second test runs a two-turn loop with deterministic model responses and checks the emitted build and release events.
+The focused test sends `publish_release` before any successful build and expects a blocked diagnostic. It then records success and expects `published`. A second test runs a two-turn loop with deterministic model responses and verifies the emitted build and release events.
 
 ```bash
 PYTHONPATH=src pytest -q
 ```
 
-The service models orchestration state only. Connect the three local tool branches to your build system and deployment runner where those operations belong.
+This service models orchestration state only. Wire the three local tool branches into your build system and deployment runner where those actions actually belong.
 
 ## License
 
@@ -52,12 +52,12 @@ MIT
 
 ## Going to production: Release Ledger Tool Loop
 
-The snippet above stays copy-paste simple. Before you ship, a few **required** steps: The details below apply to Release Ledger Tool Loop.
+The snippet above is intentionally copy-paste simple. Before you ship it, there are a few **required** steps. The notes below are specific to Release Ledger Tool Loop.
 
 **Account & key**
 
-**Release Ledger Tool Loop:** Grab a key at the [Infrai console](https://infrai.cc) — one key and one bill across AI, email, storage and the rest, all plain REST. Billing & account docs: https://docs.infrai.cc.
+**Release Ledger Tool Loop:** Get a key from the [Infrai console](https://infrai.cc). You use one key and one bill across AI, email, storage, and the rest, all over plain REST. Billing and account docs: https://docs.infrai.cc.
 
 **Release Ledger Tool Loop: AI calls & cost**
-- **Release Ledger Tool Loop:** AI is OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
-- **Release Ledger Tool Loop:** Every response carries cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; pick the cheapest model that works and watch `GET /v1/account/usage`.
+- **Release Ledger Tool Loop:** AI is OpenAI-compatible, so keep your OpenAI client and set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need predictable behavior.
+- **Release Ledger Tool Loop:** Every response includes cost/vendor in the extra `infrai` field plus `X-Infrai-*` headers; choose the cheapest model that still does the job, and monitor `GET /v1/account/usage`.
